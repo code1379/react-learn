@@ -1,4 +1,4 @@
-import { isNumber, isString } from "../utils";
+import { isFunction, isNumber, isString } from "../utils";
 
 /**
  * 创建 vdom 容器
@@ -27,6 +27,24 @@ function renderElement(reactElement) {
   }
   // reactElement 是个对象
   const { type, props } = reactElement;
+  // 如果元素的 type 是函数的话
+  if (isFunction(type)) {
+    // 类组件
+    if (type.isReactComponent) {
+      // 把属性对象传递给类组件的构造函数，返回类组件实例
+      const instance = new type(props);
+      // 调用实例的 render 方法，创建真实DOM
+      const classVDom = instance.render();
+      // 把 React元素（VDom）传递给 renderElement，创建真实DOM
+      return renderElement(classVDom);
+    } else {
+      // 将属性对象传递给函数组件，返回一个 React 元素，也就是虚拟DOM
+      const functionVDom = type(props);
+      // 把函数组件返回的 React元素（VDom）传递给 renderElement，创建真实DOM
+      return renderElement(functionVDom);
+    }
+  }
+
   // 1. 根据 type 创建真实 DOM 节点
   const domElement = document.createElement(type);
   // 2. 把 props 对象的属性，都添加到真实 DOM 节点上
