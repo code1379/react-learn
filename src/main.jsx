@@ -1,6 +1,14 @@
 import React from "./react";
 import ReactDOM from "./react-dom/client";
 
+function ChildCounter(props) {
+  return (
+    <button onClick={props.handleIncrement}>
+      {props.title}:{props.count}
+    </button>
+  );
+}
+
 class Counter extends React.Component {
   constructor(props) {
     super(props);
@@ -22,9 +30,11 @@ class Counter extends React.Component {
   };
   render() {
     return (
-      <button onClick={this.handleIncrement}>
-        {this.state.title}:{this.state.count}
-      </button>
+      <ChildCounter
+        handleIncrement={this.handleIncrement}
+        title={this.state.title}
+        count={this.state.count}
+      />
     );
   }
 }

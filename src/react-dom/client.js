@@ -41,21 +41,26 @@ function createDOMElementFromTextComponent(vdom) {
 function createDOMElementFromClassComponent(vdom) {
   const { type, props } = vdom;
   // 把属性对象传递给类组件的构造函数，返回类组件实例
-  const instance = new type(props);
+  const classInstance = new type(props);
+  // vdom 的 classInstance 属性指向类组件的实例
+  vdom.classInstance = classInstance;
   // 调用实例的 render 方法，创建真实DOM
-  const renderVdom = instance.render();
+  const renderVdom = classInstance.render();
   // 关联（通过 vdom 关联，因为最后都会走到 createDOMElementFromNativeComponent ）
   // 类的实例的 oldRenderVdom 属性指向它调用 render 方法渲染出来的虚拟DOM
-  instance.oldRenderVdom = renderVdom;
+  classInstance.oldRenderVdom = renderVdom;
   // 把 React元素（VDom）传递给 createDOMElement，创建真实DOM
   return createDOMElement(renderVdom);
 }
 function createDOMElementFromFunctionComponent(vdom) {
   const { type, props } = vdom;
   // 将属性对象传递给函数组件，返回一个 React 元素，也就是虚拟DOM
-  const functionVDom = type(props);
+  const renderVdom = type(props);
+  // 在获取到函数组件返回的虚拟DOM 之后，也需要记录一下
+  // 让函数组件的虚拟DOM 的 oldRenderVdom 属性指向它返回的虚拟DOM
+  vdom.oldRenderVdom = renderVdom;
   // 把函数组件返回的 React元素（VDom）传递给 createDOMElement，创建真实DOM
-  return createDOMElement(functionVDom);
+  return createDOMElement(renderVdom);
 }
 
 function createDOMElementFromNativeComponent(vdom) {
@@ -148,3 +153,24 @@ const ReactDOM = {
 };
 
 export default ReactDOM;
+
+/**
+ * 获取虚拟DOM对应的真实DOM
+ * @param {*} vdom
+ */
+export function getDOMElementByVdom(vdom) {
+  if (isUndefined(vdom)) return null;
+  let { type } = vdom;
+  // 如果虚拟DOM的类型 type 是一个函数的话，类组件和函数组件
+  if (isFunction(type)) {
+    if (type.isReactComponent) {
+      // 先获取类组件渲染出来的 虚拟DOM，然后再进行递归查找
+      return getDOMElementByVdom(vdom.classInstance.oldRenderVdom);
+    } else {
+      return getDOMElementByVdom(vdom.oldRenderVdom);
+    }
+  } else {
+    // 原生节点
+    return vdom.domElement;
+  }
+}

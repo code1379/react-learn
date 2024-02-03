@@ -1,4 +1,4 @@
-import { createDOMElement } from "./react-dom/client";
+import { createDOMElement, getDOMElementByVdom } from "./react-dom/client";
 import { wrapToVdom } from "./utils";
 
 /**
@@ -49,7 +49,10 @@ class Component {
     // 2. 再创建新的真实DOM
     const newDOMElement = createDOMElement(newRenderVdom);
     // 3. 替换掉老的真实DOM 需要老的真实DOM 和 老的真实DOM 的父节点
-    const oldDOMElement = this.oldRenderVdom.domElement;
+    // const oldDOMElement = this.oldRenderVdom.domElement;
+    // 嵌套函数组件
+    // const oldDOMElement = this.oldRenderVdom.oldRenderVdom.domElement;
+    const oldDOMElement = getDOMElementByVdom(this.oldRenderVdom);
     // 4. 获取父节点 div#root
     const parentDOM = oldDOMElement.parentNode;
     // 5. 替换子元素
