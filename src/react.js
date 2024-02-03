@@ -1,5 +1,5 @@
 import { createDOMElement, getDOMElementByVdom } from "./react-dom/client";
-import { wrapToVdom } from "./utils";
+import { isFunction, wrapToVdom } from "./utils";
 
 /**
  * 创建 React 元素也就是虚拟DOM的工厂方法
@@ -34,13 +34,20 @@ class Component {
     this.props = props;
   }
 
-  setState(partialState) {
+  setState(partialState, callback) {
+    let newState = partialState;
+    if (isFunction(partialState)) {
+      newState = partialState(this.state);
+    }
     this.state = {
       ...this.state,
-      ...partialState,
+      ...newState,
     };
+
     // 在计算完新状态后要更新组件
     this.forceUpdate();
+    // 在组件之后执行回调函数
+    callback();
   }
 
   forceUpdate() {

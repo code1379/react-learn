@@ -24,9 +24,18 @@ class Counter extends React.Component {
   handleIncrement = () => {
     // 可以调用 setState 方法更新状态，更新之后自动触发组件的更新
     // 只需要传递变更的属性即可
-    this.setState({
-      count: this.state.count + 1,
-    });
+    // this.setState({
+    //   count: this.state.count + 1,
+    // });
+    // setState 参数可以是一个对象，也可以是一个函数，推荐使用函数，可以根据老状态计算新状态
+    this.setState(
+      (prevState) => ({
+        count: prevState.count + 1,
+      }),
+      () => {
+        console.log("State updated!", this.state.count);
+      }
+    );
   };
   render() {
     return (
