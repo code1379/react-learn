@@ -7,13 +7,19 @@ class ClassComponent extends React.Component {
   }
   parentCapture(e) {
     console.log("parentCapture");
+    // e.stopPropagation();
   }
 
-  childBubble() {
+  childBubble(e) {
     console.log("childBubble");
+    e.stopPropagation();
   }
   childCapture() {
     console.log("childCapture");
+  }
+
+  handleLinkClick(e) {
+    e.preventDefault();
   }
   render() {
     return (
@@ -29,6 +35,9 @@ class ClassComponent extends React.Component {
         >
           点击
         </button>
+        <a href="http://www.baidu.com" onClick={this.handleLinkClick}>
+          link
+        </a>
       </div>
     );
   }
