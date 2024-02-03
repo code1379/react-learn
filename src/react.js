@@ -1,3 +1,4 @@
+import { createDOMElement } from "./react-dom/client";
 import { wrapToVdom } from "./utils";
 
 /**
@@ -31,6 +32,30 @@ class Component {
   constructor(props) {
     // 把收到的属性对象保存在自己的实例上
     this.props = props;
+  }
+
+  setState(partialState) {
+    this.state = {
+      ...this.state,
+      ...partialState,
+    };
+    // 在计算完新状态后要更新组件
+    this.forceUpdate();
+  }
+
+  forceUpdate() {
+    // 1. 从新调用 render 方法，计算新的虚拟DOM
+    const newRenderVdom = this.render();
+    // 2. 再创建新的真实DOM
+    const newDOMElement = createDOMElement(newRenderVdom);
+    // 3. 替换掉老的真实DOM 需要老的真实DOM 和 老的真实DOM 的父节点
+    const oldDOMElement = this.oldRenderVdom.domElement;
+    // 4. 获取父节点 div#root
+    const parentDOM = oldDOMElement.parentNode;
+    // 5. 替换子元素
+    parentDOM.replaceChild(newDOMElement, oldDOMElement);
+    // 6. 将实例的 oldRenderVdom 指向新的 vdom
+    this.oldRenderVdom = newRenderVdom;
   }
 }
 

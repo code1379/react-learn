@@ -43,9 +43,12 @@ function createDOMElementFromClassComponent(vdom) {
   // 把属性对象传递给类组件的构造函数，返回类组件实例
   const instance = new type(props);
   // 调用实例的 render 方法，创建真实DOM
-  const classVDom = instance.render();
+  const renderVdom = instance.render();
+  // 关联（通过 vdom 关联，因为最后都会走到 createDOMElementFromNativeComponent ）
+  // 类的实例的 oldRenderVdom 属性指向它调用 render 方法渲染出来的虚拟DOM
+  instance.oldRenderVdom = renderVdom;
   // 把 React元素（VDom）传递给 createDOMElement，创建真实DOM
-  return createDOMElement(classVDom);
+  return createDOMElement(renderVdom);
 }
 function createDOMElementFromFunctionComponent(vdom) {
   const { type, props } = vdom;
@@ -63,7 +66,7 @@ function createDOMElementFromNativeComponent(vdom) {
   updateProps(domElement, {}, props);
   // 3. 挂载儿子
   mountChildren(vdom, domElement);
-
+  vdom.domElement = domElement;
   return domElement;
 }
 
@@ -118,7 +121,7 @@ function updateProps(domElement, oldProps, newProps) {
  * @param {*} vdom 虚拟DOM
  * @returns 真实 DOM
  */
-function createDOMElement(vdom) {
+export function createDOMElement(vdom) {
   // 如果传递的 vdom 为空，则直接返回 null
   if (isUndefined(vdom)) return null;
   // vdom 是个对象
