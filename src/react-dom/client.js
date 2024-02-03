@@ -6,6 +6,7 @@ import {
   isUndefined,
   wrapToArray,
 } from "../utils";
+import { setupEventDelegation } from "./event";
 
 /**
  * 创建 vdom 容器
@@ -17,6 +18,8 @@ function createRoot(container) {
     // vdom 就是 vdom
     render(rootVdom) {
       mountVdom(rootVdom, container);
+      // 设置事件代理
+      setupEventDelegation(container);
     },
   };
 }
@@ -95,6 +98,14 @@ function updateProps(domElement, oldProps, newProps) {
     // 2.2 如果是行内样式属性的话，则直接覆盖到真实DOM 的style 上
     if (propName === "style") {
       Object.assign(domElement.style, newProps.style);
+    } else if (propName.startsWith("on")) {
+      // 在 domElement 上添加自定义属性 reactEvents，用来存放 React 事件回调
+      if (isUndefined(domElement.reactEvents)) {
+        domElement.reactEvents = {};
+      }
+      // domElement.reactEvents['onClick'] = newProps['onClick'];
+      // domElement.reactEvents['onClickCapture'] = newProps['onClickCapture'];
+      domElement.reactEvents[propName] = newProps[propName];
     } else {
       // 暂时不处理事件绑定
       domElement[propName] = newProps[propName];
