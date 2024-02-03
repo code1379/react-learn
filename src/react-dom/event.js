@@ -1,4 +1,5 @@
 // 定义一个事件类型的方法字典
+import { flushDirtyComponents, setIsBatchingUpdates } from "../react";
 import { isFunction } from "../utils/index";
 const eventTypeMethods = {
   // key 是原生事件名
@@ -35,6 +36,8 @@ export function setupEventDelegation(container) {
             phase === "capture" ? composedPath.reverse() : composedPath;
           // 拼出来方法名 onClick onClickCapture
           const methodName = eventTypeMethods[eventType][phase];
+          // 在执行事件处理器之前先把批量更新打开，设置为true
+          setIsBatchingUpdates(true);
           // 遍历所有的 DOM 元素，执行它身上绑定的 React 事件监听函数
           for (let domElement of domElements) {
             // 如果某个方法执行的时候，已经调用了 event.stopPropagation 就跳出循环
@@ -44,6 +47,8 @@ export function setupEventDelegation(container) {
             // 如果此DOM节点上绑定有回调函数，则执行它
             domElement.reactEvents?.[methodName]?.(syntheticEvent);
           }
+          //等事件处理器执行完成后进行实际的更新
+          flushDirtyComponents();
         },
         phase === "capture"
       );
