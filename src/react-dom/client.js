@@ -64,9 +64,10 @@ function createDOMElementFromFunctionComponent(vdom) {
 }
 
 function createDOMElementFromNativeComponent(vdom) {
-  const { type, props } = vdom;
+  const { type, props, ref } = vdom;
   // 1. 根据 type 创建真实 DOM 节点
   const domElement = document.createElement(type);
+  if (ref) ref.current = domElement;
   // 2. 把 props 对象的属性，都添加到真实 DOM 节点上
   updateProps(domElement, {}, props);
   // 3. 挂载儿子

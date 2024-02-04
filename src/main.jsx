@@ -1,43 +1,32 @@
 import React from "./react";
 import ReactDOM from "./react-dom/client";
-// import ReactDOM from "react-dom";
 
-class Counter extends React.Component {
-  state = {
-    count: 0,
-  };
+class RefComponent extends React.Component {
+  /**
+   * createRef 会返回一个对象，类似于 { current: null}
+   * 我们可以把此对象作为属性出单递给 DOM 元素，然后当此DOM元素避难成真实DOM元素之后，这个真实DOM会赋值给 current
+   * ref 允许我们直接访问DOM 元素
+   */
+  inputRef = React.createRef();
 
   handleClick = () => {
-    this.setState({
-      count: this.state.count + 1,
-    });
-    // 在调用完 setState 之后，this.state 并没有立即更新，而是先缓存起来了。
-    console.log(this.state);
-    this.setState({
-      count: this.state.count + 1,
-    });
-    console.log(this.state);
-    // 最后等到事件处理器执行完成才进行实际的更新;
-    // 在 setTimeout 里面是同步更新，非批量更新的
-    setTimeout(() => {
-      this.setState({
-        count: this.state.count + 1,
-      });
-      console.log(this.state);
-      this.setState({
-        count: this.state.count + 1,
-      });
-      console.log(this.state);
-    });
+    this.inputRef.current.focus();
   };
   render() {
-    return <button onClick={this.handleClick}>{this.state.count}</button>;
+    return (
+      <div>
+        <input
+          type="text"
+          ref={this.inputRef}
+          placeholder="点击按钮让我获得焦点"
+        />
+        <button onClick={this.handleClick}>click</button>
+      </div>
+    );
   }
 }
 
-const el = <Counter />;
+const el = <RefComponent />;
 // root 代表要渲染的目标容器
 let root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(el);
-// 要把那个 React 元素（虚拟DOM） 渲染到容器中
-// ReactDOM.render(el, document.getElementById("root"));
