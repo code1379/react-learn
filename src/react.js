@@ -36,6 +36,8 @@ class Component {
     this.props = props;
     // 这里保存需要但还没生效的更新
     this.pendingStates = [];
+    // 用来存放新的属性
+    this.nextProps = null;
   }
 
   setState(partialState) {
@@ -56,8 +58,22 @@ class Component {
       };
 
       // 在计算完新状态后要更新组件
-      this.forceUpdate();
+      this.updateIfNeeded();
     }
+  }
+
+  // 如果有必要的话进行更新，如果没必要就不更新
+  updateIfNeeded() {
+    // 1. 先计算新状态
+    const nextState = this.accumulateState();
+    // 现在我们还没有处理子组件的更新，当父组件传递给自组件的属性发生变化后，子组件也要更新
+    // 调用 shouldComponentUpdate 钩子计算是否要更新
+    const shuldUpdate = this.shouldComponentUpdate?.(this.nextProps, nextState);
+    // 不管要不要更新，this.state都要赋值新状态
+    this.state = nextState;
+    // 如果返回 false，就表示不更新，直接结束
+    if(!shuldUpdate) return 
+    this.forceUpdate();
   }
   // 根据 this.pendingStates 计算新状态
   accumulateState = () => {
@@ -80,8 +96,8 @@ class Component {
   };
 
   forceUpdate() {
-    // 再重新render 之前需要计算状态
-    this.state = this.accumulateState();
+    // 组件将要更新 componentWillUpdate
+    this.componentWillUpdate?.();
     // 1. 从新调用 render 方法，计算新的虚拟DOM
     const newRenderVdom = this.render();
     // 2. 再创建新的真实DOM
@@ -97,6 +113,8 @@ class Component {
     parentDOM.replaceChild(newDOMElement, oldDOMElement);
     // 6. 将实例的 oldRenderVdom 指向新的 vdom
     this.oldRenderVdom = newRenderVdom;
+    // 在更新完成后调用 componentDidUpdate
+    this.componentDidUpdate?.(this.props, this.state)
   }
 }
 
@@ -131,7 +149,7 @@ export function setIsBatchingUpdates(value) {
 // 定义一个 元素不能重复的集合，有待更新的组件称为 dirtyComponent
 export const dirtyComponents = new Set();
 export function flushDirtyComponents() {
-  dirtyComponents.forEach((component) => component.forceUpdate());
+  dirtyComponents.forEach((component) => component.updateIfNeeded());
   dirtyComponents.clear(); // 清空集合
   isBatchingUpdates = false; // 更新完之后要关闭批量更新
 }
