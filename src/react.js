@@ -1,5 +1,5 @@
 import { REACT_FORWARD_REF } from "./constant";
-import { createDOMElement, getDOMElementByVdom } from "./react-dom/client";
+import { compareVdom, createDOMElement, getDOMElementByVdom } from "./react-dom/client";
 import { isFunction, wrapToVdom } from "./utils";
 
 /**
@@ -71,8 +71,13 @@ class Component {
     const shuldUpdate = this.shouldComponentUpdate?.(this.nextProps, nextState);
     // 不管要不要更新，this.state都要赋值新状态
     this.state = nextState;
+    // 如果有新属性，则赋值给 props
+    if (this.nextProps) {
+      this.props = this.nextProps;
+      this.nextProps = null;
+    }
     // 如果返回 false，就表示不更新，直接结束
-    if(!shuldUpdate) return 
+    if (!shuldUpdate) return
     this.forceUpdate();
   }
   // 根据 this.pendingStates 计算新状态
@@ -95,13 +100,21 @@ class Component {
     return state;
   };
 
+  emitUpdate(nextProps) {
+    // 暂存新属性对象
+    this.nextProps = nextProps;
+    // 如果有新的属性或者有待更新的状态的话，就进入视图更新逻辑
+    if (this.nextProps || this.pendingStates.length > 0) {
+      this.updateIfNeeded();
+    }
+  }
   forceUpdate() {
     // 组件将要更新 componentWillUpdate
     this.componentWillUpdate?.();
     // 1. 从新调用 render 方法，计算新的虚拟DOM
-    const newRenderVdom = this.render();
+    const renderVdom = this.render();
     // 2. 再创建新的真实DOM
-    const newDOMElement = createDOMElement(newRenderVdom);
+    // const newDOMElement = createDOMElement(renderVdom);
     // 3. 替换掉老的真实DOM 需要老的真实DOM 和 老的真实DOM 的父节点
     // const oldDOMElement = this.oldRenderVdom.domElement;
     // 嵌套函数组件
@@ -109,10 +122,12 @@ class Component {
     const oldDOMElement = getDOMElementByVdom(this.oldRenderVdom);
     // 4. 获取父节点 div#root
     const parentDOM = oldDOMElement.parentNode;
-    // 5. 替换子元素
-    parentDOM.replaceChild(newDOMElement, oldDOMElement);
+    // 5. 替换子元素 现在不要简单粗暴的用新的 DOM 替换老的 DOM
+    // parentDOM.replaceChild(newDOMElement, oldDOMElement);
+    // 比较新旧DOM，找出最小化的差异，以最小的代价更新真实DOM
+    compareVdom(parentDOM, this.oldRenderVdom, renderVdom)
     // 6. 将实例的 oldRenderVdom 指向新的 vdom
-    this.oldRenderVdom = newRenderVdom;
+    this.oldRenderVdom = renderVdom;
     // 在更新完成后调用 componentDidUpdate
     this.componentDidUpdate?.(this.props, this.state)
   }

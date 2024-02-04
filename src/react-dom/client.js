@@ -1,5 +1,6 @@
 import { REACT_FORWARD_REF, REACT_TEXT } from "../constant";
 import {
+  isDefined,
   isFunction,
   isNumber,
   isString,
@@ -24,20 +25,26 @@ function createRoot(container) {
   };
 }
 
-function mountVdom(vdom, parentDOMElement) {
+function mountVdom(vdom, parentDOMElement, nextDOMElement) {
   // 1. 把虚拟DOM 变为 真实DOM
   const domElement = createDOMElement(vdom);
   // 如果没有从虚拟DOM 的到真实DOM，则不需要添加到容器中
   if (!domElement) return;
   // 2. 把真实DOM 添加到容器中
-  parentDOMElement.appendChild(domElement);
+  if (nextDOMElement) {
+    parentDOMElement.insertBefore(domElement, nextDOMElement);
+  } else {
+    parentDOMElement.appendChild(domElement);
+  }
   // 此时 DOM 元素已经挂载到页面上，可以执行挂载完成的钩子函数
   domElement.componentDidMount?.()
 }
 
 function createDOMElementFromTextComponent(vdom) {
   const { props } = vdom;
-  return document.createTextNode(props);
+  const domElement = document.createTextNode(props);
+  vdom.domElement = domElement;
+  return domElement;
 }
 
 function createDOMElementFromClassComponent(vdom) {
@@ -57,10 +64,10 @@ function createDOMElementFromClassComponent(vdom) {
   classInstance.oldRenderVdom = renderVdom;
   // 把 React元素（VDom）传递给 createDOMElement，创建真实DOM
   // 此处只是生成了真实DOM，但此真实DOM此时还没有挂载到页面中，也就是还没有插入到父节点中
-  const domElement =  createDOMElement(renderVdom);
+  const domElement = createDOMElement(renderVdom);
   // 因为我们也不知道这个 dom 元素是什么时候插入页面的，所以可以把此挂载完成的钩子函数先暂存到 dom 元素上
   // 等它真正挂载完成的时候在执行就可以了
-  if(classInstance.componentDidMount) {
+  if (classInstance.componentDidMount) {
     domElement.componentDidMount = classInstance.componentDidMount
   }
   return domElement
@@ -123,6 +130,24 @@ function mountChildren(vdom, domElement) {
  * @param {*} newProps 新属性
  */
 function updateProps(domElement, oldProps, newProps) {
+  // 如果一个属性在老的属性里有，新属性上没有，则需要删除
+  Object.keys(oldProps).forEach((propName) => {
+    // 如果新的属性对象中没有此属性了
+    if (!newProps.hasOwnProperty(propName)) {
+      if (propName === 'style') {
+        // 如果原来有行内样式，现在没有了，则需要清除原来的行内样式
+        Object.keys(oldProps.style).forEach(styleProp => {
+          domElement.style[styleProp] = null
+        })
+      } else if (propName.startsWith("on")) {
+        delete domElement.reactEvents[propName]
+      } else if (propName === 'children') {
+      } else {
+        delete domElement[propName]
+      }
+    }
+  })
+
   Object.keys(newProps).forEach((propName) => {
     // 2.1 如果属性是 children 则先跳过不处理，后面会单独处理
     if (propName === "children") {
@@ -157,7 +182,7 @@ export function createDOMElement(vdom) {
   // vdom 是个对象
   const { type, props } = vdom;
   // 说明是一个转发的函数组件
-  if(type.$$typeof === REACT_FORWARD_REF) {
+  if (type.$$typeof === REACT_FORWARD_REF) {
     return createDOMElementFromForwardComponent(vdom)
   }
   // 如果 vdom 是文本节点
@@ -202,4 +227,160 @@ export function getDOMElementByVdom(vdom) {
     // 原生节点
     return vdom.domElement;
   }
+}
+
+/**
+ * 进行深度的DOM-DIFF
+ * @param {*} parentDOM  真实的父DOM oldVdom 对应的真实DOM 的父节点
+ * @param {*} oldVdom 上一次 render 渲染出来的虚拟DOM  
+ * @param {*} newVdom 罪行的 render 渲染出来的虚拟DOM
+ */
+export function compareVdom(parentDOM, oldVdom, newVdom, nextDOMElement) {
+  // 如果新的节点和老的节点都是空的，什么都不用做
+  if (isUndefined(oldVdom) && isUndefined(newVdom)) {
+    return
+  } else if (isDefined(oldVdom) && isUndefined(newVdom)) {
+    // 老的有值，新的没有值，卸载老的DOM 节点
+    unmountVdom(oldVdom);
+  } else if (isUndefined(oldVdom) && isDefined(newVdom)) {
+    // 老的虚拟DOM 为空，新的不为空，创建新的真实DOM 并插入父容器
+    mountVdom(newVdom, parentDOM, nextDOMElement);
+  } else if (isDefined(oldVdom) && isDefined(newVdom) && oldVdom.type !== newVdom.type) {
+    // 如果新旧都有，但是类型不同，也不能复用。卸载老的，插入新的
+    unmountVdom(oldVdom);
+    mountVdom(newVdom, parentDOM, nextDOMElement);
+  } else {
+    // 新老都有，并且类型也一样。就可以进入深入对比属性和子节点
+    updateVdom(oldVdom, newVdom)
+  }
+}
+
+/**
+ * 卸载/删除 老的节点
+ * @param {*} vdom 虚拟DOM对象
+ * @returns 
+ */
+function unmountVdom(vdom) {
+  if (isUndefined(vdom)) return;
+  const { ref, props } = vdom;
+  // 递归卸载子节点
+  wrapToArray(props.children).forEach(unmountVdom)
+  // 或取此虚拟DOM 对应的真实DOM，如果窜爱的话就删除它
+  getDOMElementByVdom(vdom)?.remove();
+  // 如果这是一个类组件，并且类组件实例上还有组件将要卸载的函数，则执行它
+  vdom.classInstance?.componentWillUnmount?.();
+  // 把 ref 的current 重置为 null
+  if (ref) ref.current = null;
+
+}
+
+/**
+ * 更新虚拟DOM
+ * @param {*} oldVdom 
+ * @param {*} newVdom 
+ */
+function updateVdom(oldVdom, newVdom) {
+  const { type } = oldVdom;
+  // 如果是一个转发的Ref 的话
+  if (type.$$typeof === REACT_FORWARD_REF) {
+    return updateReactForwardComponent(oldVdom, newVdom);
+  } else if (type === REACT_TEXT) {
+    // 如果是一个文本节点
+    return updateReactTextComponent(oldVdom, newVdom);
+  } else if (isString(type)) {
+    // 说明这是一个普通的原生节点 div span
+    return updateNativeComponent(oldVdom, newVdom);
+  } else if (isFunction(type)) {
+    if (type.isReactComponent) {
+      return updateClassComponent(oldVdom, newVdom);
+    } else {
+      return updateFunctionComponent(oldVdom, newVdom);
+    }
+  }
+}
+
+function updateReactForwardComponent(oldVdom, newVdom) {
+  const { type, props, ref } = newVdom; // type={$$typeof, render} render其实就是转发前的函数组件
+  // 重新执行函数组件渲染的函数，得到渲染的虚拟DOM
+  const renderVdom = type.render(props, ref);
+  // 获取老的真实DOM的父节点，再传入老的虚拟DOM 和新的虚拟DOM
+  const parentDOM = getParentDOMByVdom(oldVdom);
+  compareVdom(parentDOM, oldVdom.oldRenderVdom, renderVdom);
+}
+
+
+function updateReactTextComponent(oldVdom, newVdom) {
+  // 先获取老的文本节点的真实DOM，然后传递给 newVdom.domElement
+  // const domElement = getDOMElementByVdom(oldVdom);
+  // newVdom.domElement = domElement
+  let domElement = newVdom.domElement = getDOMElementByVdom(oldVdom);
+  // props 是文本
+  // 如果老的文本和新的文本不一样的话，则修改文本节点内容
+  if (oldVdom.props !== newVdom.props) {
+    domElement.textContent = newVdom.props;
+  }
+}
+
+function updateClassComponent(oldVdom, newVdom) {
+  // 复用类组件的实例
+  const classInstance = newVdom.classInstance = oldVdom.classInstance;
+  // 类组件的父组件更新了，向子组件传递新的属性
+  classInstance?.componentWillReceiveProps?.(newVdom.props)
+  // 触发子组件的更新
+  classInstance.emitUpdate(newVdom.props)
+}
+function updateFunctionComponent(oldVdom, newVdom) {
+  const { type, props } = newVdom;
+  // 重新执行函数组件渲染的函数，得到渲染的虚拟DOM
+  const renderVdom = type(props);
+  // 获取老的真实DOM的父节点，再传入老的虚拟DOM 和新的虚拟DOM
+  const parentDOM = getParentDOMByVdom(oldVdom);
+  compareVdom(parentDOM, oldVdom.oldRenderVdom, renderVdom);
+  newVdom.oldRenderVdom = renderVdom;
+}
+
+function updateNativeComponent(oldVdom, newVdom) {
+  let domElement = newVdom.domElement = getDOMElementByVdom(oldVdom);
+  // 更新属性（根据旧的属性对象和新的属性对象进行更新）
+  updateProps(domElement, oldVdom.props, newVdom.props)
+  // 更新 children
+  updateChildren(domElement, oldVdom.props.children, newVdom.props.children)
+}
+
+/**
+ * 更新子节点
+ * @param {*} parentDOM 父真实DOM
+ * @param {*} oldVChildren 老的子虚拟DOM
+ * @param {*} newVChildren 新的子虚拟DOM
+ */
+function updateChildren(parentDOM, oldVChildren, newVChildren) {
+  oldVChildren = wrapToArray(oldVChildren)
+  newVChildren = wrapToArray(newVChildren)
+  // 这里先进行子节点的一一比较
+  // 获取新旧子节点的最大长度
+  const maxLength = Math.max(oldVChildren.length, newVChildren.length)
+  for (let i = 0; i < maxLength; i++) {
+    const nextDOMElement = getNextVdom(oldVChildren, i + 1);
+    compareVdom(parentDOM, oldVChildren[i], newVChildren[i], nextDOMElement);
+  }
+}
+
+/**
+ * 查找 startIndex 后面的第一个真实DOM节点
+ * @param {*} vChildren  老的虚拟DOM的 children
+ * @param {*} startIndex 开始查找的索引
+ */
+function getNextVdom(vChildren, startIndex) {
+  // 因为在传递 startIndex 的时候 + 1了，所以这里不用 + 1了
+  for (let i = startIndex; i < vChildren.length; i++) {
+    const vChild = vChildren[i];
+    let domElement = getDOMElementByVdom(vChild);
+    if (domElement) return domElement
+  }
+  return null
+}
+
+
+export function getParentDOMByVdom(vdom) {
+  return getDOMElementByVdom(vdom)?.parentNode;
 }
