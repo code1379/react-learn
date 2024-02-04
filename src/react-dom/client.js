@@ -31,6 +31,8 @@ function mountVdom(vdom, parentDOMElement) {
   if (!domElement) return;
   // 2. 把真实DOM 添加到容器中
   parentDOMElement.appendChild(domElement);
+  // 此时 DOM 元素已经挂载到页面上，可以执行挂载完成的钩子函数
+  domElement.componentDidMount?.()
 }
 
 function createDOMElementFromTextComponent(vdom) {
@@ -42,6 +44,8 @@ function createDOMElementFromClassComponent(vdom) {
   const { type, props, ref } = vdom;
   // 把属性对象传递给类组件的构造函数，返回类组件实例
   const classInstance = new type(props);
+  // 组件将要挂载
+  classInstance.componentWillMount?.()
   // ref 指向类组件的实例
   if (ref) ref.current = classInstance;
   // vdom 的 classInstance 属性指向类组件的实例
@@ -52,7 +56,14 @@ function createDOMElementFromClassComponent(vdom) {
   // 类的实例的 oldRenderVdom 属性指向它调用 render 方法渲染出来的虚拟DOM
   classInstance.oldRenderVdom = renderVdom;
   // 把 React元素（VDom）传递给 createDOMElement，创建真实DOM
-  return createDOMElement(renderVdom);
+  // 此处只是生成了真实DOM，但此真实DOM此时还没有挂载到页面中，也就是还没有插入到父节点中
+  const domElement =  createDOMElement(renderVdom);
+  // 因为我们也不知道这个 dom 元素是什么时候插入页面的，所以可以把此挂载完成的钩子函数先暂存到 dom 元素上
+  // 等它真正挂载完成的时候在执行就可以了
+  if(classInstance.componentDidMount) {
+    domElement.componentDidMount = classInstance.componentDidMount
+  }
+  return domElement
 }
 function createDOMElementFromFunctionComponent(vdom) {
   const { type, props } = vdom;
