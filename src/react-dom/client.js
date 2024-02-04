@@ -39,9 +39,11 @@ function createDOMElementFromTextComponent(vdom) {
 }
 
 function createDOMElementFromClassComponent(vdom) {
-  const { type, props } = vdom;
+  const { type, props, ref } = vdom;
   // 把属性对象传递给类组件的构造函数，返回类组件实例
   const classInstance = new type(props);
+  // ref 指向类组件的实例
+  if (ref) ref.current = classInstance;
   // vdom 的 classInstance 属性指向类组件的实例
   vdom.classInstance = classInstance;
   // 调用实例的 render 方法，创建真实DOM
