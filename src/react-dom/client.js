@@ -1,4 +1,4 @@
-import { REACT_TEXT } from "../constant";
+import { REACT_FORWARD_REF, REACT_TEXT } from "../constant";
 import {
   isFunction,
   isNumber,
@@ -65,6 +65,16 @@ function createDOMElementFromFunctionComponent(vdom) {
   return createDOMElement(renderVdom);
 }
 
+function createDOMElementFromForwardComponent(vdom) {
+  const { type, props, ref } = vdom; // type={$$typeof, render} render其实就是转发前的函数组件
+  // 把自己接收到的属性对象和 ref 作为实参传递给render 函数
+  const renderVdom = type.render(props, ref)
+  vdom.oldRenderVdom = renderVdom
+  // 根据虚拟DOM 变成真实DOM 并返回
+  return createDOMElement(renderVdom)
+}
+
+
 function createDOMElementFromNativeComponent(vdom) {
   const { type, props, ref } = vdom;
   // 1. 根据 type 创建真实 DOM 节点
@@ -77,6 +87,7 @@ function createDOMElementFromNativeComponent(vdom) {
   vdom.domElement = domElement;
   return domElement;
 }
+
 
 /**
  * 把所有的子节点也从虚拟DOM变成真实DOM并且挂载到父节点上
@@ -134,8 +145,12 @@ export function createDOMElement(vdom) {
   if (isUndefined(vdom)) return null;
   // vdom 是个对象
   const { type, props } = vdom;
+  // 说明是一个转发的函数组件
+  if(type.$$typeof === REACT_FORWARD_REF) {
+    return createDOMElementFromForwardComponent(vdom)
+  }
   // 如果 vdom 是文本节点
-  if (type === REACT_TEXT) {
+  else if (type === REACT_TEXT) {
     return createDOMElementFromTextComponent(vdom);
   }
   // 如果元素的 type 是函数的话

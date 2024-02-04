@@ -1,3 +1,4 @@
+import { REACT_FORWARD_REF } from "./constant";
 import { createDOMElement, getDOMElementByVdom } from "./react-dom/client";
 import { isFunction, wrapToVdom } from "./utils";
 
@@ -105,7 +106,18 @@ function createRef() {
   };
 }
 
-const React = { createElement, Component, createRef };
+/**
+ * 转发ref，可以实现ref的转发，可以接收ref，比更年期诶转发给函数组件
+ * @param {*} render  是一个函数组件，也就是一个渲染函数
+ */
+function forwardRef(render) {
+  return {
+    $$typeof: REACT_FORWARD_REF,
+    render
+  }
+}
+
+const React = { createElement, Component, createRef, forwardRef };
 
 export default React;
 

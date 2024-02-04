@@ -1,25 +1,25 @@
 import React from "./react";
 import ReactDOM from "./react-dom/client";
 
-class ChildComponent extends React.Component {
-  // 这是 ChildComponent 这个类组件身上的实例方法
-  alertMessage() {
-    alert(`Hello from ChildComponent`);
-  }
-  render() {
-    return <div>ChildComponent</div>;
-  }
+function ChildComponent(props, forwardRef) {
+  return <input type="text" ref={forwardRef}/>
 }
+// 可以把函数组件传递给 forwardRef，它会返回一个新组件
+// 在你需要在子组件内部DOM节点做事情的时候，
+// forwardRef 可以接收一个函数组件的渲染函数，返回一个新组件。此函数可以接收 ref
+const ForwardComponent = React.forwardRef(ChildComponent)
+
+console.log('ForwardComponent', ForwardComponent)
 
 class ParentComponent extends React.Component {
-  childComponentRef = React.createRef();
+  childRef = React.createRef();
   handleClick = () => {
-    this.childComponentRef.current.alertMessage();
+    this.childRef.current.focus();
   };
   render() {
     return (
       <div>
-        <ChildComponent ref={this.childComponentRef} />
+        <ForwardComponent ref={this.childRef} />
         <button onClick={this.handleClick}>click</button>
       </div>
     );
