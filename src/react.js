@@ -1,6 +1,6 @@
 import { REACT_FORWARD_REF } from "./constant";
 import { compareVdom, createDOMElement, getDOMElementByVdom } from "./react-dom/client";
-import { isFunction, wrapToVdom } from "./utils";
+import { isDefined, isFunction, wrapToVdom } from "./utils";
 
 /**
  * 创建 React 元素也就是虚拟DOM的工厂方法
@@ -47,6 +47,7 @@ class Component {
   setState(partialState) {
     // 如果当前处于批量更新模式，则把当前的实例添加到脏组件集合中
     if (isBatchingUpdates) {
+      debugger
       dirtyComponents.add(this);
       // 另外把更新添加到待更新队列中
       this.pendingStates.push(partialState);
@@ -69,7 +70,18 @@ class Component {
   // 如果有必要的话进行更新，如果没必要就不更新
   updateIfNeeded() {
     // 1. 先计算新状态
-    const nextState = this.accumulateState();
+    let nextState = this.accumulateState();
+    // 如果当前的实例对应的类上有 getDerivedStateFromProps 静态方法的话
+    if (this.constructor.getDerivedStateFromProps) {
+      // 调用此方法计算一个派生的状态出来
+      const derivedState = this.constructor.getDerivedStateFromProps(this.nextProps, this.state);
+      console.log("derivedState", derivedState)
+      // 如果返回值不为空，则使用此值返回新的状态
+      if (isDefined(derivedState)) {
+        nextState = { ...nextState, ...derivedState }
+      }
+    }
+
     // 现在我们还没有处理子组件的更新，当父组件传递给自组件的属性发生变化后，子组件也要更新
     // 调用 shouldComponentUpdate 钩子计算是否要更新
     const shuldUpdate = this.shouldComponentUpdate?.(this.nextProps, nextState);
@@ -105,6 +117,7 @@ class Component {
   };
 
   emitUpdate(nextProps) {
+    console.log("emitUpdate", nextProps)
     // 暂存新属性对象
     this.nextProps = nextProps;
     // 如果有新的属性或者有待更新的状态的话，就进入视图更新逻辑
@@ -117,6 +130,9 @@ class Component {
     this.componentWillUpdate?.();
     // 1. 从新调用 render 方法，计算新的虚拟DOM
     const renderVdom = this.render();
+
+    console.log("this.oldRenderVdom", this.oldRenderVdom)
+    console.log("renderVdom", renderVdom)
     // 2. 再创建新的真实DOM
     // const newDOMElement = createDOMElement(renderVdom);
     // 3. 替换掉老的真实DOM 需要老的真实DOM 和 老的真实DOM 的父节点
