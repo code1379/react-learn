@@ -369,6 +369,17 @@ function updateChildren(parentDOM, oldVChildren, newVChildren) {
   oldVChildren = wrapToArray(oldVChildren)
   newVChildren = wrapToArray(newVChildren)
   let lastPlacedNode = null;
+
+  function placeChild(donElement) {
+    if (isDefined(lastPlacedNode)) {
+      if (lastPlacedNode.nextSibling !== donElement) {
+        parentDOM.insertBefore(donElement, lastPlacedNode.nextSibling);
+      }
+    } else {
+      parentDOM.insertBefore(donElement, parentDOM.firstChild);
+    }
+    lastPlacedNode = donElement;
+  }
   // 直接遍历新数组
   for (let index = 0; index < newVChildren.length; index++) {
     // 获取新的 虚拟 DOM 节点
@@ -383,20 +394,7 @@ function updateChildren(parentDOM, oldVChildren, newVChildren) {
     if (oldVChildIndex === -1) {
       // 创建虚拟DOM的真实DOM
       const newDOMElement = createDOMElement(newVChild);
-      if (isDefined(lastPlacedNode)) {
-        // 插入到 lastPlacedNode 下一个元素的前面
-        parentDOM.insertBefore(newDOMElement, lastPlacedNode.nextSibling);
-        // 然后把 newDOMElement 赋值给lastPlacedNode，表示此节点的位置已经固定下来，不能再移动
-        // lastPlacedNode = newDOMElement;
-      } else {
-        // 第一次的时候 lastPlacedNode 为 null
-        // 因为 newDOMElement 将会成为父节点的第一个子节点，可以把它插入到父节点的第一个子节点前面
-        // newDOMElement 将会成为新的第一个子节点，然后相当于 newDOMElement 的位置就确定了（新的第一个元素）
-        parentDOM.insertBefore(newDOMElement, parentDOM.firstChild);
-        // 然后把 newDOMElement 赋值给lastPlacedNode，表示此节点的位置已经固定下来，不能再移动
-        // lastPlacedNode = newDOMElement;
-      }
-      lastPlacedNode = newDOMElement;
+      placeChild(newDOMElement);
     } else {
       // 不等于 -1，说明找到了可以复用的老节点
       const oldVChild = oldVChildren[oldVChildIndex];
@@ -404,28 +402,8 @@ function updateChildren(parentDOM, oldVChildren, newVChildren) {
       updateVdom(oldVChild, oldVChild);
       // 获取老的虚拟DOM 对应的真实DOM
       const oldDOMElement = getDOMElementByVdom(oldVChild);
-      // 然后还要调整老节点的位置
-      if (isDefined(lastPlacedNode)) {
-        // 找到的节点的位置 不在 lastPlaceNode 后面
-        if (lastPlacedNode.nextSibling !== oldDOMElement) {
-          // 如果在旧的里面找到，并且 lastPlaceNode 有值，就把找到的节点，插入到 lastPlaceNode 兄弟节点的前面
-          parentDOM.insertBefore(oldDOMElement, lastPlacedNode.nextSibling);
-
-        }
-        // 恰巧就在 lastPlaceNode 后面
-        // 确定好位置之后，找到的节点的真实DOM会变成 lastPlacedNode
-        // lastPlacedNode = oldDOMElement;
-      } else {
-        // 第一次的时候 lastPlacedNode 为 null
-        // 因为 oldDOMElement 将会成为父节点的第一个子节点，可以把它插入到父节点的第一个子节点前面
-        // oldDOMElement 将会成为新的第一个子节点，然后相当于 oldDOMElement 的位置就确定了（新的第一个元素）
-        parentDOM.insertBefore(oldDOMElement, parentDOM.firstChild);
-        // 然后把 oldDOMElement 赋值给lastPlacedNode，表示此节点的位置已经固定下来，不能再移动
-        // lastPlacedNode = oldDOMElement;
-      }
-      // 因为这个节点已经被复用了，所以可以从老的数组中删除，因为在最后会把数组中剩下的所有的元素全部删除
+      placeChild(oldDOMElement);
       oldVChildren.splice(oldVChildIndex, 1);
-      lastPlacedNode = oldDOMElement;
     }
   }
   // 在新节点遍历完成后，会把留在老的数组中的元素，全部移除掉。
