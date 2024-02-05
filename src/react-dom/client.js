@@ -68,7 +68,7 @@ function createDOMElementFromClassComponent(vdom) {
   // 因为我们也不知道这个 dom 元素是什么时候插入页面的，所以可以把此挂载完成的钩子函数先暂存到 dom 元素上
   // 等它真正挂载完成的时候在执行就可以了
   if (classInstance.componentDidMount) {
-    domElement.componentDidMount = classInstance.componentDidMount
+    domElement.componentDidMount = classInstance.componentDidMount.bind(classInstance);
   }
   return domElement
 }
@@ -348,6 +348,18 @@ function updateNativeComponent(oldVdom, newVdom) {
 }
 
 /**
+ * 判断两个虚拟DOM是否相同
+ * @param {*} oldVnode 第一个虚拟DOM节点
+ * @param {*} newVnode 第二个虚拟DOM节点
+ * @returns 布尔值，相同为 true，不相同为 false
+ */
+function isSameVnode(oldVnode, newVnode) {
+  // 如果都存在，并且类型和key都相同，认为它们是同一个可以复用的子节点
+  return isDefined(oldVnode) && isDefined(newVnode) && oldVnode.key === newVnode.key && oldVnode.type === newVnode.type;
+}
+
+
+/**
  * 更新子节点
  * @param {*} parentDOM 父真实DOM
  * @param {*} oldVChildren 老的子虚拟DOM
@@ -356,13 +368,70 @@ function updateNativeComponent(oldVdom, newVdom) {
 function updateChildren(parentDOM, oldVChildren, newVChildren) {
   oldVChildren = wrapToArray(oldVChildren)
   newVChildren = wrapToArray(newVChildren)
-  // 这里先进行子节点的一一比较
-  // 获取新旧子节点的最大长度
-  const maxLength = Math.max(oldVChildren.length, newVChildren.length)
-  for (let i = 0; i < maxLength; i++) {
-    const nextDOMElement = getNextVdom(oldVChildren, i + 1);
-    compareVdom(parentDOM, oldVChildren[i], newVChildren[i], nextDOMElement);
+  let lastPlacedNode = null;
+  // 直接遍历新数组
+  for (let index = 0; index < newVChildren.length; index++) {
+    // 获取新的 虚拟 DOM 节点
+    const newVChild = newVChildren[index];
+    // 如果新的虚拟DOM 是一个空节点，则直接进行下一次循环
+    if (isUndefined(newVChild)) continue;
+    // 试图在老的数组中，查找有没有能够复用的老节点
+    const oldVChildIndex = oldVChildren.findIndex(oldVChild => {
+      return isSameVnode(oldVChild, newVChild)
+    })
+    // 如果索引等于 -1，说明没有找到可以复用的老节点
+    if (oldVChildIndex === -1) {
+      // 创建虚拟DOM的真实DOM
+      const newDOMElement = createDOMElement(newVChild);
+      if (isDefined(lastPlacedNode)) {
+        // 插入到 lastPlacedNode 下一个元素的前面
+        parentDOM.insertBefore(newDOMElement, lastPlacedNode.nextSibling);
+        // 然后把 newDOMElement 赋值给lastPlacedNode，表示此节点的位置已经固定下来，不能再移动
+        // lastPlacedNode = newDOMElement;
+      } else {
+        // 第一次的时候 lastPlacedNode 为 null
+        // 因为 newDOMElement 将会成为父节点的第一个子节点，可以把它插入到父节点的第一个子节点前面
+        // newDOMElement 将会成为新的第一个子节点，然后相当于 newDOMElement 的位置就确定了（新的第一个元素）
+        parentDOM.insertBefore(newDOMElement, parentDOM.firstChild);
+        // 然后把 newDOMElement 赋值给lastPlacedNode，表示此节点的位置已经固定下来，不能再移动
+        // lastPlacedNode = newDOMElement;
+      }
+      lastPlacedNode = newDOMElement;
+    } else {
+      // 不等于 -1，说明找到了可以复用的老节点
+      const oldVChild = oldVChildren[oldVChildIndex];
+      // 深度更新此老节点
+      updateVdom(oldVChild, oldVChild);
+      // 获取老的虚拟DOM 对应的真实DOM
+      const oldDOMElement = getDOMElementByVdom(oldVChild);
+      // 然后还要调整老节点的位置
+      if (isDefined(lastPlacedNode)) {
+        // 找到的节点的位置 不在 lastPlaceNode 后面
+        if (lastPlacedNode.nextSibling !== oldDOMElement) {
+          // 如果在旧的里面找到，并且 lastPlaceNode 有值，就把找到的节点，插入到 lastPlaceNode 兄弟节点的前面
+          parentDOM.insertBefore(oldDOMElement, lastPlacedNode.nextSibling);
+
+        }
+        // 恰巧就在 lastPlaceNode 后面
+        // 确定好位置之后，找到的节点的真实DOM会变成 lastPlacedNode
+        // lastPlacedNode = oldDOMElement;
+      } else {
+        // 第一次的时候 lastPlacedNode 为 null
+        // 因为 oldDOMElement 将会成为父节点的第一个子节点，可以把它插入到父节点的第一个子节点前面
+        // oldDOMElement 将会成为新的第一个子节点，然后相当于 oldDOMElement 的位置就确定了（新的第一个元素）
+        parentDOM.insertBefore(oldDOMElement, parentDOM.firstChild);
+        // 然后把 oldDOMElement 赋值给lastPlacedNode，表示此节点的位置已经固定下来，不能再移动
+        // lastPlacedNode = oldDOMElement;
+      }
+      // 因为这个节点已经被复用了，所以可以从老的数组中删除，因为在最后会把数组中剩下的所有的元素全部删除
+      oldVChildren.splice(oldVChildIndex, 1);
+      lastPlacedNode = oldDOMElement;
+    }
   }
+  // 在新节点遍历完成后，会把留在老的数组中的元素，全部移除掉。
+  oldVChildren.forEach(oldVChild => {
+    getDOMElementByVdom(oldVChild)?.remove();
+  })
 }
 
 /**

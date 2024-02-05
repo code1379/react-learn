@@ -11,7 +11,7 @@ import { isFunction, wrapToVdom } from "./utils";
  */
 function createElement(type, props, children) {
   // 创建 props 对象，也就是属性对象
-  const { ref, ..._props } = props;
+  const { ref, key, ..._props } = props;
   // 如果参数大于3个，说明不止有1个儿子
   if (arguments.length > 3) {
     _props.children = Array.prototype.slice.call(arguments, 2).map(wrapToVdom);
@@ -24,6 +24,7 @@ function createElement(type, props, children) {
     type,
     props: _props,
     ref,
+    key
   };
 }
 
@@ -38,6 +39,9 @@ class Component {
     this.pendingStates = [];
     // 用来存放新的属性
     this.nextProps = null;
+  }
+  shouldComponentUpdate() {
+    return true
   }
 
   setState(partialState) {
